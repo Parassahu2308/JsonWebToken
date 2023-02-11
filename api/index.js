@@ -37,6 +37,7 @@ const users = [
   },
 ];
 
+//Login
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
   const user = users.find((u) => {
@@ -50,12 +51,48 @@ app.post("/api/login", (req, res) => {
     );
     res.json({
       user: user.username,
-      password: user.password,
+      isAdmin: user.isAdmin,
       accessToken: accessToken,
     });
   } else {
     res.status(400).json({
       msg: "User & Password incorrect",
+    });
+  }
+});
+
+//Authentication
+const verify = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const token = authHeader;
+
+    jwt.verify(token, JWT_KEY, (err, user) => {
+      if (err) {
+        res.status(403).json({
+          msg: "Token is not valid!",
+        });
+      }
+      req.user = user;
+      next();
+    });
+  } else {
+    res.status(401).json({
+      msg: "You are not authenticated!",
+    });
+  }
+};
+
+//Delete
+app.delete("/api/users/:userId", verify, (req, res) => {
+  // console.log(req.user.id, req.params.userId, req.user.isAdmin);
+  if (req.user.id == req.params.userId || req.user.isAdmin) {
+    res.status(200).json({
+      msg: "User has been deleted",
+    });
+  } else {
+    res.status(403).json({
+      msg: "You are not allowed to delete this user!",
     });
   }
 });
