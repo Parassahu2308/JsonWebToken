@@ -2,6 +2,8 @@ const express = require("express");
 const app = express();
 const jwt = require("jsonwebtoken");
 app.use(express.json());
+const cors = require("cors");
+app.use(cors());
 const { JWT_KEY } = require("./secret");
 const { users } = require("./model/users");
 
@@ -28,15 +30,16 @@ app.post("/api/refresh", (req, res) => {
     refreshTokens.push(newRefershToken);
 
     res.status(200).json({
-      AccessToken: newAccessToken,
-      RefreshToken: newRefershToken,
+      accessToken: newAccessToken,
+      refreshToken: newRefershToken,
+      refreshTokens,
     });
   });
 });
 
 const generateAccessToken = (user) => {
   return jwt.sign({ id: user.id, isAdmin: user.isAdmin }, JWT_KEY, {
-    expiresIn: "15m",
+    expiresIn: "10s",
   });
 };
 
