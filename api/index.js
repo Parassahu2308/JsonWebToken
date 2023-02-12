@@ -3,39 +3,46 @@ const app = express();
 const jwt = require("jsonwebtoken");
 app.use(express.json());
 const { JWT_KEY } = require("./secret");
+const { users } = require("./model/users");
 
-const users = [
-  {
-    id: 1,
-    username: "Paras",
-    password: "paras2308",
-    isAdmin: true,
-  },
-  {
-    id: 2,
-    username: "Soni",
-    password: "soni2308",
-    isAdmin: false,
-  },
-  {
-    id: 3,
-    username: "Kush",
-    password: "kush2308",
-    isAdmin: false,
-  },
-  {
-    id: 4,
-    username: "Aman",
-    password: "aman2308",
-    isAdmin: false,
-  },
-  {
-    id: 5,
-    username: "Deepak",
-    password: "deepak2308",
-    isAdmin: false,
-  },
-];
+let refreshTokens = [];
+
+app.post("/api/refresh", (req, res) => {
+  //taken the refresh token from the user
+  const refreshToken = req.body.token;
+
+  //send error if there is no token or its valid
+  if (!refreshToken) return res.status(401).json("You are not authenticated");
+  if (!refreshTokens.includes(refreshToken)) {
+    return res.status(403).json("Refresh token is not valid");
+  }
+
+  //if everything is ok, then create new access token, refresh token and send to the user
+  jwt.verify(refreshToken, JWT_KEY, (err, user) => {
+    err && console.log(err);
+    refreshTokens = refreshTokens.filter((token) => token !== refreshToken);
+
+    const newAccessToken = generateAccessToken(user);
+    const newRefershToken = generateRefreshToken(user);
+
+    refreshTokens.push(newRefershToken);
+
+    res.status(200).json({
+      AccessToken: newAccessToken,
+      RefreshToken: newRefershToken,
+    });
+  });
+});
+
+const generateAccessToken = (user) => {
+  return jwt.sign({ id: user.id, isAdmin: user.isAdmin }, JWT_KEY, {
+    expiresIn: "15m",
+  });
+};
+
+const generateRefreshToken = (user) => {
+  return jwt.sign({ id: user.id, isAdmin: user.isAdmin }, JWT_KEY);
+};
 
 //Login
 app.post("/api/login", (req, res) => {
@@ -45,14 +52,14 @@ app.post("/api/login", (req, res) => {
   });
   if (user) {
     //Generate access token
-    const accessToken = jwt.sign(
-      { id: user.id, isAdmin: user.isAdmin },
-      JWT_KEY
-    );
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+    refreshTokens.push(refreshToken);
     res.json({
       user: user.username,
       isAdmin: user.isAdmin,
       accessToken: accessToken,
+      refreshToken: refreshToken,
     });
   } else {
     res.status(400).json({
@@ -66,7 +73,6 @@ const verify = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (authHeader) {
     const token = authHeader;
-
     jwt.verify(token, JWT_KEY, (err, user) => {
       if (err) {
         res.status(403).json({
@@ -85,7 +91,6 @@ const verify = (req, res, next) => {
 
 //Delete
 app.delete("/api/users/:userId", verify, (req, res) => {
-  // console.log(req.user.id, req.params.userId, req.user.isAdmin);
   if (req.user.id == req.params.userId || req.user.isAdmin) {
     res.status(200).json({
       msg: "User has been deleted",
@@ -95,6 +100,13 @@ app.delete("/api/users/:userId", verify, (req, res) => {
       msg: "You are not allowed to delete this user!",
     });
   }
+});
+
+//logout
+app.post("/api/logout", verify, (req, res) => {
+  const refreshToken = req.body.token;
+  refreshTokens = refreshTokens.filter((token) => token !== refreshToken);
+  return res.status(200).json("You Logout Successfully");
 });
 
 app.listen(5000, () => {
